@@ -1,123 +1,128 @@
 #!/usr/bin/env python3
-"""V5 builder: 'Friday 20 November 2026' — a one-page newspaper front page.
+"""Build entry.png for news-image-20261120, V6.
 
-Formula learned from the top 10 entries on the live leaderboard (all
-12W 0D 0L, 99.11-99.21%): giant serif masthead, six-number stat strip,
-region bar, three lead stories with big drawn pictures, ten more numbered
-stories each with its own small drawn picture, a world map with numbered
-pins, a 22-item also-list, a DATE CHECK strip and a sources footer.
-35 stories, every one verified as happening or first reported on Friday
-20 November 2026. Colours are restrained like the leaders: cream paper,
-black serif headlines, red accents, one colour per region, and a drawn
-picture for every pictured story (13 pictures in total).
-Deterministic: fixed layout, no randomness, no network, stdlib + Pillow.
+Newspaper front page: masthead, THE DAY IN UTC timeline, THE DAY IN
+NUMBERS strip, region bar, 3 lead stories with big drawn pictures, 10
+numbered stories with small drawn pictures, world map with pins 1-13,
+27 more one-liners, DATE CHECK strip, footer. 40 stories, all verified
+as Friday 20 November 2026. Stdlib + Pillow only; deterministic.
 """
-import os
 import sys
-
 from PIL import Image, ImageDraw, ImageFont
 
 W, H = 1024, 1024
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "entry.png")
+OUT = "/home/hatch/workspace/makefun/news-image-20261120/entry.png"
+FONT_DIR = "/usr/share/fonts/truetype/dejavu/"
 
 PAPER = (247, 242, 230)
-INK = (17, 17, 17)
-GREY = (102, 102, 102)
-RED = (176, 30, 30)
-NAVY = (31, 58, 95)
-BLUE = (31, 78, 121)
-BROWN = (139, 90, 43)
+INK = (20, 20, 20)
+RED = (192, 0, 0)
+GREY = (100, 100, 100)
+SEA = (210, 225, 235)
+LAND = (232, 222, 190)
+YELLOW = (255, 210, 0)
 GREEN = (46, 125, 50)
-PURPLE = (106, 63, 160)
-TEAL = (14, 124, 123)
-LAND = (227, 213, 181)
-SEA = (222, 232, 238)
-
-FONT_DIR = "/usr/share/fonts/truetype/dejavu"
-
-
-def font(name, size):
-    return ImageFont.truetype(os.path.join(FONT_DIR, name), size)
-
-
-SERIF_B = lambda s: font("DejaVuSerif-Bold.ttf", s)
-SERIF = lambda s: font("DejaVuSerif.ttf", s)
-SANS_B = lambda s: font("DejaVuSans-Bold.ttf", s)
-SANS = lambda s: font("DejaVuSans.ttf", s)
 
 WARNED = []
 
 
-def wrap(text, fnt, max_w):
-    """Greedy word wrap; returns a list of lines that fit max_w."""
+def SERIF_B(s):
+    return ImageFont.truetype(FONT_DIR + "DejaVuSerif-Bold.ttf", s)
+
+
+def SERIF(s):
+    return ImageFont.truetype(FONT_DIR + "DejaVuSerif.ttf", s)
+
+
+def SANS(s):
+    return ImageFont.truetype(FONT_DIR + "DejaVuSans.ttf", s)
+
+
+def SANS_B(s):
+    return ImageFont.truetype(FONT_DIR + "DejaVuSans-Bold.ttf", s)
+
+
+def wrap(text, font, width):
     lines, cur = [], ""
     for word in text.split(" "):
         trial = word if not cur else cur + " " + word
-        if fnt.getlength(trial) <= max_w or not cur:
+        if font.getlength(trial) <= width:
             cur = trial
         else:
-            lines.append(cur)
+            if cur:
+                lines.append(cur)
             cur = word
     if cur:
         lines.append(cur)
     return lines
 
 
-def draw_wrapped(drw, text, fnt, x, y, max_w, max_lines, fill=INK, lh=None):
-    """Draw wrapped text; returns lines used. Warns (once per call site)
-    if the text needs more lines than allowed."""
-    lines = wrap(text, fnt, max_w)
+def draw_wrapped(drw, text, font, x, y, width, max_lines, fill=INK, lh=None):
+    lh = lh or int(font.size * 1.25)
+    lines = wrap(text, font, width)
     if len(lines) > max_lines:
-        WARNED.append("OVERFLOW %r needs %d lines, max %d"
-                      % (text[:48], len(lines), max_lines))
+        WARNED.append("overflow: %r (%d lines > %d)" %
+                      (text[:40], len(lines), max_lines))
         lines = lines[:max_lines]
-    step = lh if lh else int(fnt.size * 1.28)
     for i, line in enumerate(lines):
-        drw.text((x, y + i * step), line, font=fnt, fill=fill)
-    return len(lines)
+        drw.text((x, y + i * lh), line, font=font, fill=fill)
+    return y + len(lines) * lh
 
 
-def draw_centred(drw, text, fnt, cx, y, fill=INK):
-    w = fnt.getlength(text)
-    drw.text((cx - w / 2, y), text, font=fnt, fill=fill)
+def draw_centred(drw, text, font, cx, y, fill):
+    drw.text((cx - font.getlength(text) / 2, y), text, font=font, fill=fill)
 
 
-def rule(drw, x0, x1, y, fill=INK, width=1):
+def rule(drw, x0, x1, y, width=1, fill=INK):
     drw.line([(x0, y), (x1, y)], fill=fill, width=width)
 
 
-# ---------------------------------------------------------------- data
-# region order and colours for the region bar and the map pins
-REGIONS = [("Europe", BLUE), ("Asia", RED), ("Middle East", BROWN),
-           ("Africa", GREEN), ("Americas", PURPLE), ("Oceania", TEAL),
-           ("Global", (85, 85, 85))]
+def tag(drw, x, y, text, bg, fg, font=None, border=None):
+    fnt = font or SANS_B(8)
+    w = fnt.getlength(text) + 8
+    drw.rectangle([x, y, x + w, y + 13], fill=bg,
+                  outline=border or bg, width=1)
+    drw.text((x + 4, y + 2), text, font=fnt, fill=fg)
+    return w
 
-STATS = [
-    ("3", "bridges over the Dnipro damaged in Kyiv"),
-    ("300,000+", "people moved to shelters before Akvan"),
-    ("-6.2%", "Taiwan's share index, Friday's close"),
-    ("100,000", "youth visas a year in the UK-EU deal"),
-    ("2.3%", "Japan consumer inflation in October"),
-    ("118", "runs by Glenn Phillips against India"),
-]
 
-# (number, place, topic, region, label, headline, body, source)
+REGIONS = [("Europe", (31, 78, 121)), ("Asia", (192, 0, 0)),
+           ("Middle East", (139, 69, 19)), ("Africa", (46, 125, 50)),
+           ("Americas", (106, 27, 154)), ("Oceania", (0, 131, 143)),
+           ("Global", (97, 97, 97))]
+
+TIMELINE = [("00:00", "Kyiv bridges hit"),
+            ("02:00", "Akvan landfall"),
+            ("05:30", "Taipei -6.2%"),
+            ("06:00", "Tokyo -5.1%"),
+            ("08:00", "Hong Kong -1.9%"),
+            ("10:30", "Estonia border"),
+            ("21:00", "S&P 500 -3.7%")]
+
+STATS = [("111", "missiles fired at Ukraine"),
+         ("372,000", "evacuated before Akvan"),
+         ("-3.7%", "S&P 500, Friday's close"),
+         ("100,000", "youth visas a year"),
+         ("2.2%", "Japan core inflation"),
+         ("118", "runs by Glenn Phillips")]
+
 LEADS = [
-    (1, "KYIV, UKRAINE", "WAR", "Europe", None,
+    (1, "KYIV, UKRAINE", "WAR", "Europe", "111 MISSILES + 404 DRONES",
      "Russian missiles hit three Kyiv bridges",
-     "An overnight barrage of about 110 missiles and 400 drones killed "
-     "eight people across Ukraine and cut power and water in the capital.",
+     "About 110 missiles and 400 drones killed six people in Kyiv and "
+     "cut power and water. Two more died in Lviv.",
      "Kyiv Independent, BBC"),
-    (2, "ODISHA, INDIA", "CYCLONE", "Asia", None,
+    (2, "ODISHA, INDIA", "CYCLONE", "Asia", "372,000 EVACUATED",
      "Cyclone Akvan comes ashore in eastern India",
-     "The storm crossed the coast near Gopalpur from about 8 am; more "
-     "than 300,000 people were moved to shelters. No deaths reported.",
-     "IMD, Deccan Herald"),
-    (3, "TAIPEI · SEOUL · TOKYO", "MARKETS", "Asia", None,
+     "The storm crossed the coast near Gopalpur from about 7:30 am. "
+     "More than 372,000 people were moved to shelters. No deaths "
+     "reported.", "IMD, Deccan Herald"),
+    (3, "TAIPEI · SEOUL · TOKYO", "MARKETS", "Asia",
+     "NASDAQ'S WORST WEEK SINCE 2020",
      "AI sell-off sinks Asia's stock markets",
-     "Taiwan's index fell 6.2% to end its worst week since 1991. Seoul "
-     "lost 5.2% and Tokyo 5.1% as chipmakers led the slide.",
-     "Al Jazeera, Reuters"),
+     "Taiwan's index fell 6.2% to end its worst week since 1991. "
+     "Seoul lost 5.2% and Tokyo 5.1%. The S&P 500 fell 3.7% in "
+     "New York.", "Al Jazeera, Reuters"),
 ]
 
 NUMBERED = [
@@ -136,8 +141,8 @@ NUMBERED = [
     (8, "ITALY", "LABOUR", "Europe", "ITALY: STRIKE",
      "General strike over Italy's budget",
      "Workers and students march.", "Reuters"),
-    (9, "TOKYO", "ECONOMY", "Asia", "JAPAN: +2.3%",
-     "Japan's inflation picks up to 2.3%",
+    (9, "TOKYO", "ECONOMY", "Asia", "JAPAN: +2.2%",
+     "Japan's core inflation picks up to 2.2%",
      "A December rate rise stays in view.", "Reuters"),
     (10, "SEOUL", "POLITICS", "Asia", "SEOUL: IMPEACH",
      "Korea's ruling party to impeach top judge",
@@ -153,7 +158,6 @@ NUMBERED = [
      "Hundreds in India in all three formats.", "ICC"),
 ]
 
-# (number, text, source) — one line each in the also-list
 ALSO = [
     (14, "Anthropic ends first day up 17%", "Reuters"),
     (15, "Shenzhen: leaders publish peace declaration", "AP"),
@@ -175,8 +179,13 @@ ALSO = [
     (31, "Anthropic's $81bn offering closes Friday", "Reuters"),
     (32, "US charges Russian over Palantir spying", "Reuters"),
     (33, "NZ court: pay-equity reform broke rights", "RNZ"),
-    (34, "Car-trafficking swoop: 2,393 seizures", "Interpol"),
+    (34, "Car-trafficking swoop: 2,393 seized", "Interpol"),
     (35, "Zelensky: NATO is the strongest guarantee", "AP"),
+    (36, "Russian strike on Lviv rail station kills 2", "The Times"),
+    (37, "Estonia to shut Russia road border on 1 Dec", "Reuters"),
+    (38, "Israeli strikes kill 6 in Gaza despite truce", "AFP"),
+    (39, "Coalition strikes Houthi-held Hodeidah port", "Reuters"),
+    (40, "AfDB says 22 African states near debt distress", "AfDB"),
 ]
 
 DATE_CHECK = (
@@ -193,272 +202,263 @@ FOOTER_R = "Sources named beside each story · original drawings"
 
 
 # ---------------------------------------------------------------- pictures
-# Every pictured story (1-13) gets its own drawn picture: three big ones
-# for the leads, ten small ones for the numbered stories. All drawn from
-# primitives — no photos, no network.
-
 def _star(drw, cx, cy, r, fill):
-    """A small four-point explosion star."""
-    pts = [(cx, cy - r), (cx + r * 0.32, cy - r * 0.32),
-           (cx + r, cy), (cx + r * 0.32, cy + r * 0.32),
-           (cx, cy + r), (cx - r * 0.32, cy + r * 0.32),
-           (cx - r, cy), (cx - r * 0.32, cy - r * 0.32)]
-    drw.polygon(pts, fill=fill)
+    drw.polygon([(cx, cy - r), (cx + r * 0.28, cy - r * 0.28),
+                 (cx + r, cy), (cx + r * 0.28, cy + r * 0.28),
+                 (cx, cy + r), (cx - r * 0.28, cy + r * 0.28),
+                 (cx - r, cy), (cx - r * 0.28, cy - r * 0.28)],
+                fill=fill)
 
 
-def _dash(drw, x0, y0, x1, y1, fill, width=2, dash=7, gap=5):
-    """A dashed line, drawn as segments."""
-    import math
-    dist = math.hypot(x1 - x0, y1 - y0)
-    n = max(1, int(dist / (dash + gap)))
-    for i in range(n):
-        t0 = i * (dash + gap) / dist
-        t1 = min(1.0, t0 + dash / dist)
+def _dash(drw, x0, y0, x1, y1, fill, step=8):
+    n = max(1, int(((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5 / step))
+    for i in range(0, n, 2):
+        t0, t1 = i / n, min(1.0, (i + 1) / n)
         drw.line([(x0 + (x1 - x0) * t0, y0 + (y1 - y0) * t0),
                   (x0 + (x1 - x0) * t1, y0 + (y1 - y0) * t1)],
-                 fill=fill, width=width)
+                 fill=fill, width=2)
 
 
-def _label(drw, x, y, text):
-    """Red label banner with white bold text, top-left of a picture."""
+def _label(drw, x, y, text, bg=RED, fg=(255, 255, 255)):
     fnt = SANS_B(10)
-    w = int(fnt.getlength(text)) + 10
-    drw.rectangle([x, y, x + w, y + 16], fill=RED)
-    drw.text((x + 5, y + 2), text, font=fnt, fill=(255, 255, 255))
+    w = fnt.getlength(text) + 10
+    drw.rectangle([x, y, x + w, y + 16], fill=bg)
+    drw.text((x + 5, y + 3), text, font=fnt, fill=fg)
+    return w
+
+
+def _vtag(drw, x, y, w, text, kind):
+    fnt = SANS_B(8)
+    tw = fnt.getlength(text) + 8
+    tx = x + w - tw
+    if kind == "CONFIRMED":
+        drw.rectangle([tx, y, tx + tw, y + 13], fill=GREEN)
+        drw.text((tx + 4, y + 2), text, font=fnt, fill=(255, 255, 255))
+    elif kind == "OFFICIAL":
+        drw.rectangle([tx, y, tx + tw, y + 13], fill=(255, 255, 255),
+                      outline=RED, width=1)
+        drw.text((tx + 4, y + 2), text, font=fnt, fill=RED)
+    else:
+        drw.rectangle([tx, y, tx + tw, y + 13], fill=GREY)
+        drw.text((tx + 4, y + 2), text, font=fnt, fill=(255, 255, 255))
 
 
 def pic_kyiv(drw, x, y, w, h):
-    drw.rectangle([x, y, x + w, y + h], fill=(16, 28, 54))
-    for sx, sy in [(20, 14), (70, 26), (150, 10), (210, 30), (260, 12),
-                   (300, 24), (40, 48), (120, 40), (190, 52), (280, 44)]:
-        drw.ellipse([x + sx - 1, y + sy - 1, x + sx + 1, y + sy + 1],
-                    fill=(255, 255, 200))
-    # skyline
-    for bx, bw, bh in [(0, 46, 52), (52, 30, 66), (88, 40, 44),
-                       (134, 34, 60), (174, 44, 48), (224, 36, 64),
-                       (266, 54, 50)]:
-        drw.rectangle([x + bx, y + h - 26 - bh, x + bx + bw, y + h - 26],
-                      fill=(8, 14, 30))
-        for wy in range(y + h - 26 - bh + 8, y + h - 30, 12):
-            for wx in range(x + bx + 6, x + bx + bw - 4, 12):
-                drw.rectangle([wx, wy, wx + 4, wy + 5], fill=(255, 200, 80))
-    # river
-    drw.rectangle([x, y + h - 26, x + w, y + h], fill=(24, 52, 96))
-    # three bridges
-    for cx in (60, 160, 260):
-        drw.arc([x + cx - 42, y + h - 52, x + cx + 42, y + h - 4],
-                180, 360, fill=(220, 220, 220), width=3)
-        drw.line([(x + cx - 42, y + h - 26), (x + cx + 42, y + h - 26)],
-                 fill=(220, 220, 220), width=2)
-    # missile trails and bursts
-    _dash(drw, x + 250, y + 6, x + 210, y + 44, (255, 170, 60), 2)
-    _dash(drw, x + 300, y + 20, x + 268, y + 52, (255, 170, 60), 2)
-    _dash(drw, x + 90, y + 4, x + 60, y + 40, (255, 170, 60), 2)
-    _star(drw, x + 210, y + 46, 9, (255, 190, 60))
-    _star(drw, x + 60, y + 42, 8, (255, 190, 60))
-    _star(drw, x + 268, y + 54, 7, (255, 210, 90))
-    drw.rectangle([x + 6, y + h - 22, x + 118, y + h - 6], fill=(0, 0, 0))
-    drw.text((x + 11, y + h - 20), "3 bridges hit", font=SANS_B(10),
-             fill=(255, 255, 255))
+    drw.rectangle([x, y, x + w, y + h], fill=(16, 24, 48))
+    for bx in (x + 18, x + 78, x + 138, x + 198, x + 258):
+        drw.rectangle([bx, y + 58, bx + 42, y + 104], fill=(30, 40, 70))
+        for wy in (y + 66, y + 78, y + 90):
+            for wx in (bx + 6, bx + 18, bx + 30):
+                drw.rectangle([wx, wy, wx + 5, wy + 5], fill=YELLOW)
+    drw.rectangle([x, y + 104, x + w, y + h], fill=(40, 70, 120))
+    for cx in (x + 60, x + 160, x + 260):
+        drw.arc([cx - 52, y + 78, cx + 52, y + 130], 180, 360,
+                fill=(255, 255, 255), width=3)
+        drw.line([(cx - 52, y + 104), (cx + 52, y + 104)],
+                 fill=(255, 255, 255), width=2)
+    for sx, sy, ex, ey in ((x + 40, y + 12, x + 90, y + 52),
+                           (x + 150, y + 8, x + 200, y + 48),
+                           (x + 240, y + 14, x + 285, y + 50)):
+        _dash(drw, sx, sy, ex, ey, (255, 180, 60))
+        _star(drw, ex, ey, 7, (255, 200, 80))
+    _label(drw, x, y + h - 20, "111 MISSILES + 404 DRONES", bg=YELLOW,
+           fg=INK)
+    _vtag(drw, x, y, w, "OFFICIAL · KYIV", "OFFICIAL")
 
 
 def pic_akvan(drw, x, y, w, h):
-    drw.rectangle([x, y, x + w, y + h], fill=(46, 110, 168))
-    # Odisha coast: land on the left
-    drw.polygon([(x, y), (x + 118, y), (x + 96, y + 34), (x + 108, y + 62),
-                 (x + 84, y + 92), (x + 96, y + h), (x, y + h)],
-                fill=(224, 205, 160))
-    drw.line([(x + 118, y), (x + 96, y + 34), (x + 108, y + 62),
-              (x + 84, y + 92), (x + 96, y + h)], fill=(120, 90, 50), width=2)
-    # cyclone spiral over the Bay of Bengal
-    cx, cy = x + 205, y + 62
-    for r, a0, a1 in [(52, 20, 300), (40, 120, 40), (28, 220, 140),
-                      (16, 320, 240)]:
-        drw.arc([cx - r, cy - r, cx + r, cy + r], a0, a1, fill=(255, 255, 255),
-                width=3)
-    drw.ellipse([cx - 6, cy - 6, cx + 6, cy + 6], fill=(255, 255, 255))
-    # Gopalpur marker
-    drw.ellipse([x + 100, y + 66, x + 110, y + 76], fill=RED,
-                outline=(255, 255, 255), width=2)
+    drw.rectangle([x, y, x + w, y + h], fill=(52, 110, 180))
+    land = [(x, y), (x + 118, y), (x + 138, y + 30), (x + 122, y + 58),
+            (x + 140, y + 88), (x + 112, y + h), (x, y + h)]
+    drw.polygon(land, fill=(232, 222, 190), outline=(180, 165, 120))
     drw.text((x + 8, y + 6), "ODISHA", font=SANS_B(10), fill=INK)
     drw.text((x + 8, y + 20), "INDIA", font=SANS(9), fill=INK)
-    drw.rectangle([x + w - 132, y + 8, x + w - 8, y + 26], fill=(0, 0, 0))
-    drw.text((x + w - 127, y + 11), "Landfall · 8 am", font=SANS_B(10),
+    drw.text((x + 8, y + h - 14), "BAY OF BENGAL", font=SANS(9),
              fill=(255, 255, 255))
-    drw.text((x + 8, y + h - 18), "BAY OF BENGAL", font=SANS_B(9),
-             fill=(255, 255, 255))
+    cx, cy = x + 205, y + 66
+    for r in (52, 40, 28, 16):
+        drw.arc([cx - r, cy - r, cx + r, cy + r], 20, 300,
+                fill=(255, 255, 255), width=3)
+    drw.ellipse([cx - 5, cy - 5, cx + 5, cy + 5], fill=(255, 255, 255))
+    drw.ellipse([x + 128, y + 44, x + 136, y + 52], fill=RED,
+                outline=(255, 255, 255), width=1)
+    _label(drw, x + w - 148, y + 4, "LANDFALL 02:00-03:00 UTC",
+           bg=(0, 0, 0))
+    _label(drw, x, y + h - 20, "372,000 EVACUATED", bg=RED)
 
 
 def pic_markets(drw, x, y, w, h):
-    drw.rectangle([x, y, x + w, y + h], fill=(12, 18, 32))
-    # falling chart on the left
-    pts = [(x + 12, y + 26), (x + 52, y + 34), (x + 92, y + 30),
-           (x + 132, y + 52), (x + 168, y + 66), (x + 196, y + 96)]
-    for gy in (30, 60, 90):
-        drw.line([(x + 8, y + gy), (x + 204, y + gy)], fill=(40, 55, 80))
-    drw.line(pts, fill=(230, 60, 60), width=3)
+    drw.rectangle([x, y, x + w, y + h], fill=(12, 14, 26))
+    _label(drw, x, y, "NASDAQ'S WORST WEEK SINCE 2020", bg=RED)
+    pts = [(x + 12, y + 34), (x + 42, y + 40), (x + 72, y + 32),
+           (x + 102, y + 52), (x + 132, y + 66), (x + 162, y + 92),
+           (x + 190, y + 108)]
+    for i in range(len(pts) - 1):
+        drw.line([pts[i], pts[i + 1]], fill=(255, 60, 60), width=3)
     for px, py in pts:
-        drw.ellipse([px - 3, py - 3, px + 3, py + 3], fill=(230, 60, 60))
-    # closing table on the right
+        drw.ellipse([px - 3, py - 3, px + 3, py + 3], fill=(255, 80, 80))
     rows = [("Taipei", "-6.2%"), ("Seoul", "-5.2%"), ("Tokyo", "-5.1%"),
-            ("Hong Kong", "-1.9%")]
+            ("Hong Kong", "-1.9%"), ("S&P 500", "-3.7%")]
     for i, (name, val) in enumerate(rows):
-        ry = y + 22 + i * 24
-        drw.text((x + 214, ry), name, font=SANS(11), fill=(220, 220, 220))
-        vw = SANS_B(11).getlength(val)
-        drw.text((x + w - 10 - vw, ry), val, font=SANS_B(11),
-                 fill=(255, 90, 90))
-    drw.text((x + 10, y + h - 20), "Closing prices", font=SANS_B(10),
+        ry = y + 24 + i * 20
+        drw.text((x + 205, ry), name, font=SANS(11),
+                 fill=(255, 255, 255))
+        vf = SANS_B(11)
+        drw.text((x + w - 6 - vf.getlength(val), ry), val, font=vf,
+                 fill=(255, 80, 80))
+    drw.text((x + 8, y + h - 16), "Closing prices", font=SANS_B(10),
              fill=(255, 255, 255))
 
 
 def pic_ukeu(drw, x, y, w, h):
-    hw = w // 2
-    drw.rectangle([x, y, x + hw, y + h], fill=(0, 36, 125))
-    drw.rectangle([x + hw, y, x + w, y + h], fill=(0, 51, 153))
-    # Union Jack, simplified: white diagonals and cross, red cross
-    drw.line([(x, y), (x + hw, y + h)], fill=(255, 255, 255), width=5)
-    drw.line([(x, y + h), (x + hw, y)], fill=(255, 255, 255), width=5)
-    drw.line([(x + hw // 2, y), (x + hw // 2, y + h)], fill=(255, 255, 255),
-             width=9)
-    drw.line([(x, y + h // 2), (x + hw, y + h // 2)], fill=(255, 255, 255),
-             width=9)
-    drw.line([(x + hw // 2, y), (x + hw // 2, y + h)], fill=(200, 16, 46),
-             width=5)
-    drw.line([(x, y + h // 2), (x + hw, y + h // 2)], fill=(200, 16, 46),
-             width=5)
-    # EU stars
-    import math
+    drw.rectangle([x, y, x + w, y + h], fill=(245, 245, 245))
+    drw.rectangle([x, y, x + 88, y + h], fill=(1, 33, 105))
+    for cx in (x + 14, x + 44, x + 74):
+        drw.line([(cx, y), (cx, y + h)], fill=(255, 255, 255), width=12)
+    drw.line([(x, y + 22), (x + 88, y + 22)], fill=(255, 255, 255),
+             width=12)
+    drw.rectangle([x + 96, y, x + w, y + h], fill=(0, 51, 153))
     for i in range(12):
-        a = math.radians(i * 30 - 90)
-        sx = x + hw + hw // 2 + int(30 * math.cos(a))
-        sy = y + h // 2 + int(18 * math.sin(a))
-        drw.ellipse([sx - 2, sy - 2, sx + 2, sy + 2], fill=(255, 204, 0))
+        import math
+        a = math.pi * 2 * i / 12
+        sx = x + 144 + 26 * math.cos(a)
+        sy = y + 27 + 26 * math.sin(a)
+        _star(drw, sx, sy, 4, YELLOW)
     _label(drw, x, y, "UK-EU DEAL")
+    _vtag(drw, x, y, w, "OFFICIAL", "OFFICIAL")
 
 
 def pic_cop31(drw, x, y, w, h):
-    drw.rectangle([x, y, x + w, y + h], fill=(178, 222, 226))
-    drw.ellipse([x + 14, y + 6, x + 62, y + 48], fill=(46, 110, 168))
-    drw.ellipse([x + 24, y + 16, x + 38, y + 28], fill=(90, 180, 90))
-    drw.ellipse([x + 40, y + 30, x + 54, y + 42], fill=(90, 180, 90))
-    # thermometer
-    drw.rectangle([x + 84, y + 8, x + 96, y + 36], fill=(255, 255, 255))
-    drw.rectangle([x + 87, y + 22, x + 93, y + 36], fill=RED)
-    drw.ellipse([x + 80, y + 32, x + 100, y + 50], fill=RED)
-    drw.text((x + 112, y + 12), "38°", font=SANS_B(16), fill=RED)
-    drw.text((x + 112, y + 32), "ANTALYA", font=SANS_B(9), fill=INK)
+    drw.rectangle([x, y, x + w, y + h], fill=(200, 235, 245))
+    drw.ellipse([x + 12, y + 6, x + 52, y + 46], fill=(70, 140, 200))
+    drw.ellipse([x + 20, y + 14, x + 36, y + 26], fill=(90, 180, 90))
+    drw.ellipse([x + 34, y + 30, x + 46, y + 40], fill=(90, 180, 90))
+    drw.rectangle([x + 78, y + 10, x + 86, y + 34], fill=(220, 220, 220),
+                  outline=INK, width=1)
+    drw.ellipse([x + 73, y + 32, x + 91, y + 48], fill=RED)
+    drw.text((x + 98, y + 8), "38°", font=SANS_B(16), fill=RED)
+    drw.text((x + 98, y + 30), "ANTALYA", font=SANS_B(9), fill=INK)
     _label(drw, x, y, "COP31: NO DEAL")
+    _vtag(drw, x, y, w, "CONFIRMED", "CONFIRMED")
 
 
 def pic_poland(drw, x, y, w, h):
-    drw.rectangle([x, y, x + w, y + h], fill=(135, 178, 96))
-    drw.rectangle([x, y, x + w, y + 16], fill=(190, 214, 235))
-    _dash(drw, x + 150, y + 6, x + 60, y + 34, (255, 255, 255), 2)
-    drw.polygon([(x + 52, y + 30), (x + 66, y + 36), (x + 52, y + 42)],
+    drw.rectangle([x, y, x + w, y + h], fill=(190, 220, 245))
+    drw.rectangle([x, y + 30, x + w, y + h], fill=(150, 200, 110))
+    drw.rectangle([x, y + 42, x + w, y + h], fill=(120, 180, 90))
+    _dash(drw, x + 20, y + 10, x + 120, y + 30, (120, 120, 120))
+    drw.polygon([(x + 118, y + 24), (x + 134, y + 30), (x + 118, y + 36)],
                 fill=(90, 90, 90))
-    _star(drw, x + 44, y + 40, 8, (255, 170, 40))
-    drw.line([(x, y + h - 8), (x + w, y + h - 8)], fill=(90, 120, 60), width=2)
+    _star(drw, x + 150, y + 34, 10, (255, 200, 60))
+    drw.polygon([(x + 30, y + 54), (x + 44, y + 28), (x + 58, y + 54)],
+                fill=(60, 120, 60))
+    drw.polygon([(x + 60, y + 54), (x + 74, y + 28), (x + 88, y + 54)],
+                fill=(60, 120, 60))
     _label(drw, x, y, "POLAND: MISSILE")
+    _vtag(drw, x, y, w, "OFFICIAL", "OFFICIAL")
 
 
 def pic_iraq(drw, x, y, w, h):
-    drw.rectangle([x, y, x + w, y + h], fill=(222, 196, 138))
-    drw.ellipse([x + 158, y + 4, x + 178, y + 24], fill=(255, 190, 80))
-    # tank
-    drw.rectangle([x + 30, y + 30, x + 96, y + 46], fill=(74, 94, 58))
-    drw.rectangle([x + 48, y + 20, x + 76, y + 30], fill=(74, 94, 58))
-    drw.line([(x + 76, y + 25), (x + 116, y + 22)], fill=(50, 64, 40), width=4)
-    drw.ellipse([x + 38, y + 46, x + 48, y + 52], fill=(40, 40, 40))
-    drw.ellipse([x + 78, y + 46, x + 88, y + 52], fill=(40, 40, 40))
-    # palm
-    drw.line([(x + 140, y + 52), (x + 140, y + 26)], fill=(120, 80, 40),
+    drw.rectangle([x, y, x + w, y + h], fill=(245, 230, 190))
+    drw.ellipse([x + 150, y + 6, x + 182, y + 38], fill=(255, 200, 90))
+    drw.rectangle([x + 16, y + 26, x + 96, y + 40], fill=(90, 100, 70))
+    drw.rectangle([x + 30, y + 40, x + 82, y + 46], fill=(70, 80, 55))
+    drw.rectangle([x + 44, y + 12, x + 60, y + 26], fill=(70, 80, 55))
+    for wx in (x + 22, x + 34, x + 46, x + 58, x + 70, x + 82):
+        drw.ellipse([wx, y + 46, wx + 9, y + 54], fill=(40, 40, 40))
+    drw.line([(x + 128, y + 50), (x + 128, y + 14)], fill=(120, 90, 40),
              width=3)
-    for dx, dy in [(-12, -6), (12, -6), (-10, 2), (10, 2), (0, -10)]:
-        drw.line([(x + 140, y + 26), (x + 140 + dx, y + 26 + dy)],
-                 fill=(40, 120, 60), width=2)
+    for a, ln in ((-50, 16), (-20, 20), (10, 18), (40, 15)):
+        import math
+        r = math.radians(a)
+        drw.line([(x + 128, y + 16),
+                  (x + 128 + ln * math.sin(r), y + 16 - ln * math.cos(r))],
+                 fill=(60, 140, 60), width=3)
     _label(drw, x, y, "IRAQ: ARMY IN")
+    _vtag(drw, x, y, w, "OFFICIAL", "OFFICIAL")
 
 
 def pic_italy(drw, x, y, w, h):
-    drw.rectangle([x, y, x + w, y + h], fill=(240, 232, 210))
-    for i, col in enumerate([(0, 146, 70), (255, 255, 255), (205, 0, 0)]):
-        drw.rectangle([x + i * (w // 3), y, x + (i + 1) * (w // 3), y + 8],
-                      fill=col)
-    heads = [(28, (205, 92, 92)), (62, (92, 142, 205)), (96, (240, 200, 90)),
-             (130, (120, 200, 120)), (164, (180, 120, 200))]
-    for hx, col in heads:
-        drw.ellipse([x + hx - 8, y + 18, x + hx + 8, y + 34], fill=col)
-        drw.pieslice([x + hx - 12, y + 34, x + hx + 12, y + 58], 180, 360,
-                     fill=col)
+    drw.rectangle([x, y, x + w, y + h], fill=(245, 240, 225))
+    for i, col in enumerate([(0, 140, 70), (255, 255, 255), (200, 0, 0)]):
+        drw.rectangle([x + i * 64, y, x + (i + 1) * 64, y + 10], fill=col)
+    for i, col in enumerate([(200, 60, 60), (60, 120, 200), (220, 180, 60),
+                             (60, 160, 90), (150, 90, 180)]):
+        cx = x + 22 + i * 38
+        drw.ellipse([cx - 11, y + 20, cx + 11, y + 42], fill=col)
+        drw.polygon([(cx - 13, y + 54), (cx + 13, y + 54),
+                     (cx + 8, y + 42), (cx - 8, y + 42)], fill=col)
     _label(drw, x, y, "ITALY: STRIKE")
+    _vtag(drw, x, y, w, "CONFIRMED", "CONFIRMED")
 
 
 def pic_japan(drw, x, y, w, h):
-    drw.rectangle([x, y, x + w, y + h], fill=(255, 255, 255))
-    drw.ellipse([x + 14, y + 12, x + 46, y + 44], fill=(188, 0, 45))
-    bars = [(70, 18), (92, 26), (114, 34), (136, 44)]
-    for bx, bh in bars:
-        drw.rectangle([x + bx, y + 48 - bh, x + bx + 14, y + 48],
-                      fill=(120, 120, 120))
-    drw.line([(x + 66, y + 30), (x + 156, y + 6)], fill=RED, width=3)
-    drw.polygon([(x + 156, y + 6), (x + 146, y + 4), (x + 152, y + 14)],
+    drw.rectangle([x, y, x + w, y + h], fill=(250, 250, 250))
+    drw.ellipse([x + 10, y + 6, x + 42, y + 38], fill=RED)
+    for i, bh in enumerate((14, 20, 26, 32)):
+        drw.rectangle([x + 58 + i * 26, y + 48 - bh,
+                       x + 76 + i * 26, y + 48], fill=(140, 140, 140))
+    drw.line([(x + 56, y + 12), (x + 172, y + 2)], fill=RED, width=3)
+    drw.polygon([(x + 172, y + 2), (x + 160, y + 0), (x + 162, y + 10)],
                 fill=RED)
-    _label(drw, x, y, "JAPAN: +2.3%")
+    _label(drw, x, y, "JAPAN: +2.2%")
+    _vtag(drw, x, y, w, "CONFIRMED", "CONFIRMED")
 
 
 def pic_seoul(drw, x, y, w, h):
-    drw.rectangle([x, y, x + w, y + h], fill=(214, 226, 235))
-    drw.polygon([(x + 40, y + 8), (x + 96, y + 8), (x + 68, y + 22)],
-                fill=(90, 90, 90))
-    drw.rectangle([x + 44, y + 22, x + 92, y + 28], fill=(245, 245, 245))
-    for cx in (50, 64, 78, 88):
-        drw.rectangle([x + cx, y + 28, x + cx + 4, y + 48], fill=(245, 245, 245))
-    drw.rectangle([x + 40, y + 48, x + 96, y + 52], fill=(245, 245, 245))
-    # gavel
-    drw.rectangle([x + 132, y + 18, x + 158, y + 28], fill=(120, 72, 32))
-    drw.line([(x + 145, y + 28), (x + 152, y + 46)], fill=(120, 72, 32), width=4)
+    drw.rectangle([x, y, x + w, y + h], fill=(235, 235, 240))
+    drw.polygon([(x + 16, y + 12), (x + 82, y + 12), (x + 49, y + 2)],
+                fill=(90, 90, 110))
+    for cx in (x + 26, x + 49, x + 72):
+        drw.rectangle([cx - 3, y + 12, cx + 3, y + 44],
+                      fill=(200, 200, 210))
+    drw.rectangle([x + 14, y + 44, x + 84, y + 50], fill=(120, 120, 140))
+    drw.line([(x + 120, y + 20), (x + 160, y + 34)], fill=(120, 80, 40),
+             width=5)
+    drw.rectangle([x + 150, y + 34, x + 176, y + 42], fill=(120, 80, 40))
     _label(drw, x, y, "SEOUL: IMPEACH")
+    _vtag(drw, x, y, w, "REPORTED", "REPORTED")
 
 
 def pic_kenya(drw, x, y, w, h):
-    drw.rectangle([x, y, x + w, y + h], fill=(245, 176, 80))
-    drw.ellipse([x + 148, y + 6, x + 176, y + 34], fill=(255, 220, 120))
-    # oil derrick
-    drw.line([(x + 40, y + 52), (x + 56, y + 12)], fill=(30, 30, 30), width=3)
-    drw.line([(x + 72, y + 52), (x + 56, y + 12)], fill=(30, 30, 30), width=3)
-    drw.line([(x + 46, y + 38), (x + 66, y + 38)], fill=(30, 30, 30), width=2)
-    drw.line([(x + 50, y + 26), (x + 62, y + 26)], fill=(30, 30, 30), width=2)
-    drw.rectangle([x + 52, y + 8, x + 60, y + 14], fill=(30, 30, 30))
-    drw.rectangle([x, y + h - 6, x + w, y + h], fill=(120, 70, 30))
+    drw.rectangle([x, y, x + w, y + h], fill=(255, 190, 90))
+    drw.ellipse([x + 152, y + 4, x + 184, y + 36], fill=(255, 220, 120))
+    drw.line([(x + 40, y + 54), (x + 58, y + 10)], fill=(60, 60, 60),
+             width=4)
+    drw.line([(x + 76, y + 54), (x + 58, y + 10)], fill=(60, 60, 60),
+             width=4)
+    for yy in (y + 20, y + 30, y + 40):
+        drw.line([(x + 46, yy), (x + 70, yy)], fill=(60, 60, 60), width=3)
+    drw.rectangle([x + 100, y + 40, x + 140, y + 54], fill=(90, 90, 90))
     _label(drw, x, y, "KENYA: OIL")
+    _vtag(drw, x, y, w, "OFFICIAL", "OFFICIAL")
 
 
 def pic_bukele(drw, x, y, w, h):
-    drw.rectangle([x, y, x + w, y + h], fill=(36, 74, 140))
-    drw.rectangle([x + 60, y + 16, x + 124, y + 48], fill=(255, 255, 255))
-    drw.rectangle([x + 76, y + 16, x + 108, y + 20], fill=(30, 30, 30))
-    drw.rectangle([x + 84, y + 4, x + 100, y + 16], fill=(255, 255, 255))
-    drw.line([(x + 132, y + 24), (x + 142, y + 34), (x + 160, y + 14)],
-             fill=(255, 255, 255), width=3)
-    drw.text((x + 12, y + 30), "VOTE", font=SANS_B(13), fill=(255, 255, 255))
+    drw.rectangle([x, y, x + w, y + h], fill=(0, 60, 140))
+    drw.text((x + 10, y + 22), "VOTE", font=SANS_B(18),
+             fill=(255, 255, 255))
+    drw.rectangle([x + 84, y + 22, x + 132, y + 50], fill=(255, 255, 255))
+    drw.rectangle([x + 88, y + 26, x + 128, y + 34], fill=(220, 220, 220))
+    drw.line([(x + 138, y + 30), (x + 148, y + 42), (x + 168, y + 14)],
+             fill=(255, 255, 255), width=5)
     _label(drw, x, y, "BUKELE: 3RD BID")
+    _vtag(drw, x, y, w, "REPORTED", "REPORTED")
 
 
 def pic_phillips(drw, x, y, w, h):
-    drw.rectangle([x, y, x + w, y + h], fill=(46, 140, 70))
-    drw.rectangle([x + 60, y + 8, x + 132, y + 46], fill=(222, 196, 138))
-    # stumps
-    for sx in (88, 96, 104):
-        drw.line([(x + sx, y + 12), (x + sx, y + 26)], fill=(255, 220, 90),
-                 width=2)
-    # bat and ball
-    drw.polygon([(x + 116, y + 14), (x + 124, y + 12), (x + 118, y + 34),
-                 (x + 110, y + 34)], fill=(210, 180, 120))
-    drw.ellipse([x + 140, y + 30, x + 150, y + 40], fill=(200, 30, 30))
+    drw.rectangle([x, y, x + w, y + h], fill=(40, 140, 60))
+    drw.rectangle([x + 60, y + 8, x + 132, y + 46], fill=(220, 190, 130))
+    for sx in (x + 68, x + 94, x + 120):
+        drw.rectangle([sx, y + 12, sx + 4, y + 42], fill=(245, 245, 245))
+    drw.line([(x + 20, y + 48), (x + 170, y + 26)], fill=(245, 245, 245),
+             width=3)
+    drw.ellipse([x + 148, y + 30, x + 158, y + 40], fill=RED)
     drw.rectangle([x + 8, y + 28, x + 52, y + 46], fill=(0, 0, 0))
-    drw.text((x + 12, y + 31), "118", font=SANS_B(12), fill=(255, 255, 255))
+    drw.text((x + 12, y + 31), "118", font=SANS_B(12),
+             fill=(255, 255, 255))
     _label(drw, x, y, "PHILLIPS: 118")
+    _vtag(drw, x, y, w, "CONFIRMED", "CONFIRMED")
 
 
 BIG_PICS = {1: pic_kyiv, 2: pic_akvan, 3: pic_markets}
@@ -469,21 +469,17 @@ SMALL_PICS = {4: pic_ukeu, 5: pic_cop31, 6: pic_poland, 7: pic_iraq,
 
 # ---------------------------------------------------------------- map
 CONTINENTS = [
-    # North America
     [(-168, 66), (-140, 70), (-125, 72), (-110, 73), (-95, 80), (-85, 70),
      (-75, 62), (-60, 55), (-55, 47), (-65, 44), (-75, 39), (-80, 32),
      (-85, 30), (-90, 21), (-95, 19), (-105, 23), (-115, 30), (-125, 40),
      (-125, 49), (-140, 60), (-155, 58), (-165, 60)],
-    # South America
     [(-80, 9), (-75, 11), (-62, 11), (-52, 5), (-50, 0), (-44, -3),
      (-35, -8), (-40, -20), (-48, -28), (-58, -38), (-68, -52), (-73, -50),
      (-73, -37), (-70, -20), (-80, -5)],
-    # Africa
     [(-17, 15), (-10, 31), (-5, 35), (10, 37), (20, 32), (32, 31),
      (35, 28), (43, 12), (51, 11), (48, 2), (40, -10), (35, -20),
      (32, -29), (25, -34), (18, -35), (12, -18), (9, 4), (-8, 5),
      (-13, 8)],
-    # Eurasia
     [(-10, 36), (-9, 43), (-2, 48), (0, 50), (5, 53), (8, 57), (12, 56),
      (18, 56), (21, 55), (24, 59), (28, 60), (30, 62), (32, 68), (40, 68),
      (50, 69), (60, 69), (70, 72), (80, 73), (90, 75), (100, 76),
@@ -501,20 +497,17 @@ CONTINENTS = [
      (48, 30), (44, 29), (40, 28), (36, 27), (35, 30), (33, 31),
      (30, 36), (26, 38), (23, 36), (20, 40), (18, 42), (15, 44),
      (12, 44), (8, 44), (3, 43), (-2, 43), (-5, 40), (-9, 38), (-10, 36)],
-    # Australia
     [(113, -22), (114, -30), (115, -35), (120, -34), (125, -32), (130, -32),
      (135, -35), (140, -38), (145, -38), (150, -37), (153, -30),
      (150, -22), (146, -19), (142, -15), (140, -12), (135, -12),
      (132, -11), (130, -13), (126, -14), (122, -17), (118, -20)],
 ]
 
-# story number -> (x, y) pin centre inside the map box (nudged so the
-# European cluster does not overlap), and its region colour
 PINS = {
-    1: (204, 796), 2: (247, 838), 3: (279, 830), 4: (172, 798),
-    5: (202, 816), 6: (186, 784), 7: (216, 822), 8: (176, 812),
-    9: (298, 818), 10: (282, 808), 11: (204, 862), 12: (95, 846),
-    13: (325, 927),
+    1: (204, 833), 2: (247, 866), 3: (279, 860), 4: (170, 832),
+    5: (202, 848), 6: (186, 822), 7: (216, 854), 8: (172, 846),
+    9: (298, 851), 10: (282, 842), 11: (204, 886), 12: (95, 873),
+    13: (322, 936),
 }
 PIN_REGION = {1: "Europe", 2: "Asia", 3: "Asia", 4: "Europe",
               5: "Global", 6: "Europe", 7: "Middle East", 8: "Europe",
@@ -528,7 +521,8 @@ ALSO_REGION = {14: "Americas", 15: "Asia", 16: "Americas", 17: "Americas",
                25: "Middle East", 26: "Europe", 27: "Global",
                28: "Americas", 29: "Middle East", 30: "Americas",
                31: "Americas", 32: "Americas", 33: "Oceania",
-               34: "Global", 35: "Europe"}
+               34: "Global", 35: "Europe", 36: "Europe", 37: "Europe",
+               38: "Middle East", 39: "Middle East", 40: "Africa"}
 
 
 def draw_map(drw, mx, my, mw, mh):
@@ -558,7 +552,7 @@ def build():
 
     # kicker line
     drw.text((mx, 6), "THE WORLD IN ONE DAY", font=SANS_B(11), fill=RED)
-    right = "35 STORIES · 7 REGIONS · EVERY ONE DATED FRIDAY 20 NOVEMBER 2026"
+    right = "40 STORIES · 7 REGIONS · EVERY ONE DATED FRIDAY 20 NOVEMBER 2026"
     fnt = SANS(10)
     drw.text((W - mx - fnt.getlength(right), 7), right, font=fnt, fill=INK)
     rule(drw, mx, W - mx, 22, width=2)
@@ -577,16 +571,30 @@ def build():
     draw_centred(drw, sub, SERIF(14), cx, 96, INK)
     rule(drw, mx, W - mx, 114, width=1)
 
-    # stat strip: six big numbers
-    cell = (W - 2 * mx) // 6
+    # THE DAY IN UTC timeline
+    drw.rectangle([mx, 118, 100, 160], fill=RED)
+    draw_centred(drw, "THE DAY", SANS_B(12), 58, 126, (255, 255, 255))
+    draw_centred(drw, "IN UTC", SANS_B(12), 58, 142, (255, 255, 255))
+    drw.line([(112, 140), (1000, 140)], fill=(150, 150, 150), width=2)
+    xs = [175, 303, 431, 559, 687, 815, 940]
+    for (t, lab), px in zip(TIMELINE, xs):
+        drw.ellipse([px - 4, 136, px + 4, 144], fill=RED,
+                    outline=(255, 255, 255), width=1)
+        draw_centred(drw, t, SANS_B(11), px, 122, RED)
+        draw_centred(drw, lab, SANS(9), px, 147, INK)
+
+    # THE DAY IN NUMBERS strip
+    drw.rectangle([mx, 164, 150, 204], fill=RED)
+    draw_centred(drw, "THE DAY", SANS_B(12), 83, 172, (255, 255, 255))
+    draw_centred(drw, "IN NUMBERS", SANS_B(12), 83, 188, (255, 255, 255))
+    cell = 850 / 6
     for i, (num, cap) in enumerate(STATS):
-        x0 = mx + i * cell
+        x0 = 158 + i * cell
         if i:
-            drw.line([(x0, 118), (x0, 156)], fill=RED, width=2)
-        draw_centred(drw, num, SANS_B(26), x0 + cell // 2, 118,
+            drw.line([(int(x0), 168), (int(x0), 200)], fill=RED, width=2)
+        draw_centred(drw, num, SANS_B(22), x0 + cell / 2, 170,
                      RED if num.startswith("-") else INK)
-        draw_wrapped(drw, cap, SANS(10), x0 + 8, 146, cell - 16, 2,
-                     fill=GREY, lh=11)
+        draw_centred(drw, cap, SANS(9), x0 + cell / 2, 196, GREY)
 
     # region bar: segments sized by story count
     counts = {}
@@ -596,37 +604,40 @@ def build():
         counts[region] = counts.get(region, 0) + 1
     total = sum(counts.values())
     bx = mx
-    for name, col in REGIONS:
+    names = [n for n, _ in REGIONS if counts.get(n, 0)]
+    for k, (name, col) in enumerate(REGIONS):
         n = counts.get(name, 0)
-        seg = int(round((W - 2 * mx) * n / total))
         if n == 0:
             continue
-        drw.rectangle([bx, 162, bx + seg - 1, 180], fill=col)
+        seg = (W - mx - bx) if k == len(names) - 1 else \
+            int(round((W - 2 * mx) * n / total))
+        drw.rectangle([bx, 210, bx + seg - 1, 228], fill=col)
         lab = "%s %d" % (name, n)
         fnt = SANS_B(10)
         if fnt.getlength(lab) <= seg - 6:
-            draw_centred(drw, lab, fnt, bx + seg // 2, 166, (255, 255, 255))
+            draw_centred(drw, lab, fnt, bx + seg // 2, 214,
+                         (255, 255, 255))
         bx += seg
 
     # three lead stories
     lead_w, lead_x = 320, [16, 344, 672]
     for (num, place, topic, region, _lab, head, body, src), lx in zip(
             LEADS, lead_x):
-        BIG_PICS[num](drw, lx, 186, lead_w, 128)
-        drw.ellipse([lx, 318, lx + 15, 333], fill=RED)
+        BIG_PICS[num](drw, lx, 234, lead_w, 128)
+        drw.ellipse([lx, 366, lx + 15, 381], fill=RED)
         nf = SANS_B(9)
-        drw.text((lx + 8 - nf.getlength(str(num)) / 2, 320), str(num),
+        drw.text((lx + 8 - nf.getlength(str(num)) / 2, 368), str(num),
                  font=nf, fill=(255, 255, 255))
-        drw.text((lx + 20, 319), "%s · %s" % (place, topic), font=SANS_B(10),
+        drw.text((lx + 20, 367), "%s · %s" % (place, topic), font=SANS_B(10),
                  fill=RED)
-        draw_wrapped(drw, head, SERIF_B(19), lx, 336, lead_w, 3, lh=22)
-        draw_wrapped(drw, body + " (%s)" % src, SANS(11), lx, 406, lead_w,
+        draw_wrapped(drw, head, SERIF_B(19), lx, 384, lead_w, 3, lh=22)
+        draw_wrapped(drw, body + " (%s)" % src, SANS(11), lx, 454, lead_w,
                      3, fill=INK, lh=15)
 
     # ten numbered stories, two rows of five
     col_w, col_x = 192, [16, 216, 416, 616, 816]
     for row in range(2):
-        y0 = 460 + row * 132
+        y0 = 507 + row * 132
         for col in range(5):
             num, place, topic, region, label, head, body, src = \
                 NUMBERED[row * 5 + col]
@@ -640,36 +651,36 @@ def build():
                          col_w, 2, fill=INK, lh=11)
 
     # map + also-list headers
-    drw.text((mx, 724), "WHERE IT HAPPENED", font=SANS_B(11), fill=RED)
-    drw.text((340, 724), "ALSO ON FRIDAY 20 NOVEMBER — 22 MORE STORIES",
+    drw.text((mx, 771), "WHERE IT HAPPENED", font=SANS_B(11), fill=RED)
+    drw.text((340, 771), "ALSO ON FRIDAY 20 NOVEMBER — 27 MORE STORIES",
              font=SANS_B(11), fill=RED)
-    draw_map(drw, mx, 742, 314, 212)
+    draw_map(drw, mx, 789, 314, 171)
     for i, (num, text, src) in enumerate(ALSO):
-        col = i // 11
-        row = i % 11
+        col = i // 14
+        row = i % 14
         lx = 340 + col * 336
-        ry = 744 + row * 18
-        nf = SANS_B(10)
+        ry = 792 + row * 12
+        nf = SANS_B(9)
         drw.text((lx, ry), str(num), font=nf, fill=RED)
-        tx = lx + nf.getlength(str(num)) + 5
-        drw.text((tx, ry), text, font=SANS(10), fill=INK)
-        tw = SANS(10).getlength(text)
-        drw.text((tx + tw + 3, ry), "(%s)" % src, font=SANS(10), fill=GREY)
-        if tx + tw + 3 + SANS(10).getlength("(%s)" % src) > lx + 324:
+        tx = lx + nf.getlength(str(num)) + 4
+        drw.text((tx, ry), text, font=SANS(9), fill=INK)
+        tw = SANS(9).getlength(text)
+        drw.text((tx + tw + 3, ry), "(%s)" % src, font=SANS(9), fill=GREY)
+        if tx + tw + 3 + SANS(9).getlength("(%s)" % src) > lx + 324:
             WARNED.append("ALSO %d too wide" % num)
 
     # DATE CHECK strip
-    drw.rectangle([mx, 958, W - mx, 992], outline=RED, width=2)
-    drw.rectangle([mx + 2, 960, mx + 108, 990], fill=RED)
-    drw.text((mx + 8, 969), "DATE CHECK", font=SANS_B(11),
+    drw.rectangle([mx, 966, W - mx, 998], outline=RED, width=2)
+    drw.rectangle([mx + 2, 968, mx + 108, 996], fill=RED)
+    drw.text((mx + 8, 977), "DATE CHECK", font=SANS_B(11),
              fill=(255, 255, 255))
-    draw_wrapped(drw, DATE_CHECK, SANS(10), mx + 116, 962, W - mx - 124, 2,
+    draw_wrapped(drw, DATE_CHECK, SANS(10), mx + 116, 970, W - mx - 124, 2,
                  lh=12)
 
     # footer
-    drw.text((mx, 1000), FOOTER_L, font=SANS(9), fill=GREY)
+    drw.text((mx, 1004), FOOTER_L, font=SANS(9), fill=GREY)
     rf = SANS(9)
-    drw.text((W - mx - rf.getlength(FOOTER_R), 1000), FOOTER_R, font=rf,
+    drw.text((W - mx - rf.getlength(FOOTER_R), 1004), FOOTER_R, font=rf,
              fill=GREY)
 
     img.save(OUT, "PNG")
